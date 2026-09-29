@@ -1,25 +1,25 @@
 # Sales Follow-up OS
 
-**通用 AI 销售跟进系统：让新线索、报价和会后行动都有下一步。**
+**AI-assisted sales follow-up that gives every new lead, quote, and meeting a clear next step.**
 
-Brand-neutral sales follow-up automation for small teams. Deterministic reminders, a Chinese dashboard, optional AI summaries, reviewed email delivery, n8n templates, and an installable agent skill.
+Brand-neutral sales follow-up automation for small teams. Deterministic reminders, a Chinese-language dashboard, optional AI summaries, reviewed email delivery, n8n templates, and an installable agent skill.
 
-## 能做什么
+## What it does
 
-| 场景 | 默认规则 | 结果 |
+| Scenario | Default rule | Result |
 | --- | --- | --- |
-| 新线索无人联系 | 10 分钟 | 负责人收到首响超时任务 |
-| 报价没有下文 | 报价后 3 / 7 / 14 天 | 分阶段提醒与可编辑话术 |
-| 会议结束无下一步 | 24 小时 | 提醒安排负责人和后续时间 |
-| 约定的下一步逾期 | 到指定时间 | 到期提醒 |
-| 客户回复、成交、流失、退订 | 收到对应事件 | 取消待办及尚未发出的通知 |
-| 通知失败 | 指数退避，最多 5 次 | 工作台可见失败并可手动重试 |
+| A new lead has not been contacted | 10 minutes | Create an overdue first-contact task for the owner |
+| A quote has no reply | Days 3 / 7 / 14 after the quote | Staged reminders with editable message drafts |
+| A meeting ends without a next step | 24 hours | Remind the team to assign an owner and schedule the next action |
+| A scheduled next step is overdue | At the specified deadline | Create a reminder |
+| A customer replies, a deal is won or lost, or a customer opts out | On receipt of the corresponding event | Cancel pending tasks and unsent notifications |
+| A notification fails | Exponential backoff, up to 5 attempts | Show the failure in the dashboard and allow manual retries |
 
-本项目是可运行的单团队 MVP，不是 50 个成品 SaaS 的集合。附带的 [50 项资源索引](docs/resources-50.md) 是选型资料；核心系统为原创实现，不复制第三方模板源码。
+This is a runnable, single-team MVP. The accompanying [index of 50 resources](docs/resources-50.md) supports tool selection; it is not a collection of 50 finished SaaS applications. The core system is an original implementation and does not copy third-party template source code.
 
-## 5 分钟本地启动
+## Local quick start
 
-要求 Python 3.10+，运行时只使用标准库，不需要安装 Python 依赖。
+Requires Python 3.10+. The application uses only the Python standard library at runtime, so no Python dependencies need to be installed.
 
 ```bash
 git clone https://github.com/trsgogogo/sales-followup-os.git
@@ -27,13 +27,13 @@ cd sales-followup-os
 cp .env.example .env
 ```
 
-编辑 `.env`，用下面命令生成随机 `FOLLOWUP_API_TOKEN`，替换示例值：
+Edit `.env`. Generate a random `FOLLOWUP_API_TOKEN` with the following command and replace the example value:
 
 ```bash
 python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-加载配置并启动（macOS / Linux；`.env` 的含空格值需要引号）：
+Load the configuration and start the server on macOS or Linux. Quote any values containing spaces in `.env`.
 
 ```bash
 set -a
@@ -42,79 +42,81 @@ set +a
 python3 -m followup.server
 ```
 
-打开 <http://127.0.0.1:8080>，输入 `.env` 中的 Token。新增线索后，后台每 30 秒检查一次到期任务。默认只在本地工作台显示提醒，AI、Webhook、SMTP 均为可选项。
+Open <http://127.0.0.1:8080> and enter the token from `.env`. After you add a lead, the background process checks for due tasks every 30 seconds. By default, reminders appear only in the local dashboard. AI, webhooks, and SMTP are optional.
 
-Windows PowerShell 可直接设置 `$env:FOLLOWUP_API_TOKEN` 等环境变量，再运行 `python -m followup.server`；或者使用 Docker Compose。
+On Windows PowerShell, set environment variables such as `$env:FOLLOWUP_API_TOKEN` directly, then run `python -m followup.server`. Alternatively, use Docker Compose.
 
-## Docker 启动
+## Run with Docker
+
+Configure `.env` first, then run:
 
 ```bash
 docker compose up -d --build
 docker compose logs -f
 ```
 
-同样先配置 `.env`。默认只发布 `127.0.0.1:8080`，SQLite 数据保存在持久卷。远程使用时在前面配置 HTTPS 反向代理；不要直接将 Python 标准库 HTTP 服务暴露到公网。
+The default configuration binds to `127.0.0.1:8080` only and stores SQLite data in a persistent volume. For remote access, place an HTTPS reverse proxy in front of the application. Do not expose the Python standard-library HTTP server directly to the public internet.
 
-## 从线索到成交的流程
+## From lead intake to the next action
 
 ```mermaid
 flowchart LR
-  A[表单 / CRM / 手工录入] --> B[校验与去重]
-  B --> C[轮转分配负责人]
-  C --> D[保存客户与事件]
-  D --> E[固定规则扫描]
-  E --> F[跟进任务与基础草稿]
-  F --> G[工作台 / 内部通知]
-  G --> H[可选 AI 摘要与话术]
-  H --> I[人工编辑和批准]
-  I --> J[复制发送 / 可选 SMTP]
+  A[Form / CRM / Manual entry] --> B[Validate and deduplicate]
+  B --> C[Assign an owner round-robin]
+  C --> D[Store customer and events]
+  D --> E[Scan fixed rules]
+  E --> F[Follow-up tasks and basic drafts]
+  F --> G[Dashboard / Internal notifications]
+  G --> H[Optional AI summaries and drafts]
+  H --> I[Human editing and approval]
+  I --> J[Copy and send / Optional SMTP]
   J --> D
-  K[回复 / 成交 / 流失 / 退订] --> L[取消待办和待发提醒]
+  K[Reply / Won / Lost / Opt-out] --> L[Cancel pending tasks and reminders]
   L --> D
 ```
 
-1. 在工作台添加线索，或通过 `POST /api/leads` 接入表单 / CRM。
-2. 配置 `SALES_OWNERS`，新线索自动轮转分配；也可单独指定负责人。
-3. 完成联系、报价、会议后，记录对应事件。**系统不会把内部消息已读误认为销售已联系客户。**
-4. 到期任务展示客户背景和基础话术。点击“生成摘要与草稿”可使用已配置的模型。
-5. 编辑草稿后批准；可复制到现有渠道发送，或使用开启后的 SMTP 发送按钮。
-6. 邮箱 / CRM 的真实回复需通过集成发送 `reply` 事件，随后自动取消后续追踪。退订发 `optout`。
-7. 客户已回复但仍需推进时，由负责人安排明确的 `next_step`，不继续原来的未回复催促序列。
+1. Add a lead in the dashboard, or connect a form or CRM through `POST /api/leads`.
+2. Configure `SALES_OWNERS` to assign new leads round-robin. You can also specify an owner for an individual lead.
+3. Record the corresponding event after contacting a customer, sending a quote, or holding a meeting. **Reading an internal notification does not count as contacting the customer.**
+4. Due tasks show customer context and a basic message draft. Use the dashboard's summary-and-draft action to call your configured model.
+5. Edit and approve the draft. Copy it into your existing channel, or use the SMTP send button if email sending is enabled.
+6. Your mailbox or CRM integration must submit a `reply` event when a real customer reply arrives. This cancels the pending follow-up sequence. Submit `optout` for an unsubscribe.
+7. If a customer has replied but the deal still needs work, the owner should schedule an explicit `next_step` instead of continuing the unanswered-quote sequence.
 
-## 配置
+## Configuration
 
-| 变量 | 用途 |
+| Variable | Purpose |
 | --- | --- |
-| `FOLLOWUP_API_TOKEN` | 必填，至少 24 字符，所有客户 API 共用一个团队令牌 |
-| `SALES_OWNERS` | 逗号分隔的负责人列表 |
-| `FIRST_RESPONSE_MINUTES` | 首响超时，默认 10 |
-| `QUOTE_FOLLOWUP_DAYS` | 报价提醒天数，默认 `3,7,14` |
-| `MEETING_NEXT_STEP_HOURS` | 会后缺少下一步的提醒，默认 24 |
-| `NOTIFY_WEBHOOK_URL` | 可选 HTTPS 内部通知地址 |
+| `FOLLOWUP_API_TOKEN` | Required; at least 24 characters. One shared team token protects all customer APIs. |
+| `SALES_OWNERS` | Comma-separated list of owners |
+| `FIRST_RESPONSE_MINUTES` | First-contact deadline in minutes; default: `10` |
+| `QUOTE_FOLLOWUP_DAYS` | Quote follow-up days; default: `3,7,14` |
+| `MEETING_NEXT_STEP_HOURS` | Hours before a reminder for a meeting without a next step; default: `24` |
+| `NOTIFY_WEBHOOK_URL` | Optional HTTPS endpoint for internal notifications |
 | `NOTIFY_FORMAT` | `generic` / `slack` / `feishu` / `wecom` |
-| `LLM_URL` / `LLM_API_KEY` / `LLM_MODEL` | 可选 Chat Completions 兼容模型；URL 包括完整路径 |
-| `ENABLE_EMAIL_SEND` | 默认 `false`；启用 SMTP 发送需设置为 `true` |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | SMTP STARTTLS，默认 587 端口 |
+| `LLM_URL` / `LLM_API_KEY` / `LLM_MODEL` | Optional Chat Completions-compatible model; the URL must include the full endpoint path |
+| `ENABLE_EMAIL_SEND` | Defaults to `false`; set to `true` to enable SMTP sending |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | SMTP with STARTTLS; default port: `587` |
 
-AI 未配置或调用失败时退回基础模板，定时提醒继续工作。AI 输出是建议，不代表产品事实已被验证。模型会接收当前客户资料和最近 12 条事件；只把准备交给该模型供应商处理的资料接入此功能。
+If AI is not configured or a model call fails, the application falls back to basic templates and scheduled reminders continue to work. AI output is a suggestion, not verification of product claims. The model receives the current customer record and the 12 most recent events; use this feature only for information you intend to share with that model provider.
 
-## n8n、Activepieces 与 Skill
+## n8n, Activepieces, and the agent skill
 
-- [n8n 模板](workflows/n8n/)：线索入口、客户事件入口、定时扫描、内部通知转发。
-- [集成配置指南](docs/integrations.md)：凭据、CRM / 邮件事件映射、Activepieces 搭建方式。
-- [API 与状态语义](docs/api.md)：所有接口和停止规则。
-- [运维说明](docs/operations.md)：备份、失败恢复和部署范围。
-- [Agent Skill](skills/sales-followup/SKILL.md)：让助手按同一套规则操作已部署系统。
+- [n8n templates](workflows/n8n/): lead intake, customer event intake, scheduled scans, and internal notification forwarding.
+- [Integration guide](docs/integrations.md): credentials, CRM and email event mapping, and Activepieces setup.
+- [API and state semantics](docs/api.md): endpoints and stop conditions.
+- [Operations guide](docs/operations.md): backups, failure recovery, and deployment scope.
+- [Agent skill](skills/sales-followup/SKILL.md): instructions for operating a deployed system consistently.
 
-安装 Skill 到支持 Skills CLI 的工具：
+Install the skill in a tool that supports the Skills CLI:
 
 ```bash
 npx skills add https://github.com/trsgogogo/sales-followup-os --skill sales-followup
 ```
 
-也可以手动复制 `skills/sales-followup` 到工具支持的技能目录。安装 Skill 不会自动部署应用或建立后台定时服务。
+You can also copy `skills/sales-followup` into your tool's supported skill directory manually. Installing the skill does not deploy the application or start a background scheduler.
 
-## 验证
+## Validation
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -122,18 +124,18 @@ python3 scripts/validate_workflows.py
 node --check followup/static/app.js
 ```
 
-测试覆盖边界时间、去重、负责人轮转、回复停止、报价重置、会议待办、延期、通知重试、上下文更新撤销批准、SMTP 不确定结果处理、数据持久化、并发扫描和 API 认证。外部模型、邮件与机器人使用测试替身，不会向真实客户发送消息。
+Tests cover deadline boundaries, deduplication, round-robin assignment, cancellation after replies, quote resets, meeting tasks, snoozing, notification retries, approval invalidation after context changes, uncertain SMTP delivery, persistence, concurrent scans, and API authentication. External models, email services, and notification bots use test doubles; tests do not send messages to real customers.
 
-## 当前边界
+## Current limitations
 
-- 单实例、单团队、共享 Token；尚未实现用户账号、细粒度权限和多租户隔离。
-- 工作日、节假日和免打扰时段尚未实现；规则按 UTC 持续计时，工作台用浏览器本地时区显示。
-- 邮件回复检测依赖外部邮箱 / CRM 触发器，不会自行读取 Gmail、LinkedIn、个人微信或 X。
-- 提醒通知采用至少一次投递。网络超时可能使第三方机器人重复收到消息；通用 Webhook 接收方应按 `event_id` 去重。
-- SMTP 由人批准后单独发送，不是无人审核的自动营销序列；发送失败或重启中断时标记 `delivery_unknown`，需先在邮件服务商核实。
-- n8n 文件经过 JSON 和连接结构检查；不同 n8n 版本的导入及凭据需在目标实例验证。
-- Docker 配置和 CI 已提供，实际外部服务联调需要你自己的账号配置。
+- One instance, one team, and one shared token. Individual user accounts, fine-grained permissions, and multi-tenant isolation are not implemented.
+- Business hours, holidays, and quiet hours are not implemented. Rules use continuous UTC time; the dashboard displays dates in the browser's local time zone.
+- Reply detection depends on external mailbox or CRM triggers. The application does not independently read Gmail, LinkedIn, personal WeChat, or X messages.
+- Reminder notifications use at-least-once delivery. Network timeouts can cause duplicate messages in third-party bots; generic webhook receivers should deduplicate by `event_id`.
+- SMTP delivery requires human approval followed by a separate send action. Failed or restart-interrupted sends are marked `delivery_unknown`; check the email provider before retrying.
+- The n8n files have passed JSON and connection-structure checks. Import behavior and credentials must be verified in the target n8n instance.
+- Docker configuration and CI are included. Live integration testing with external services requires your own account configuration.
 
 ## License
 
-MIT，见 [LICENSE](LICENSE)。第三方资源索引仅链接来源，其原有许可证不变。
+MIT. See [LICENSE](LICENSE). The third-party resource index links to original sources; their existing licenses remain unchanged.
