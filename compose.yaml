@@ -1,0 +1,13 @@
+services:
+  followup:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - followup-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  followup-data:

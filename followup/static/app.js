@@ -1,0 +1,32 @@
+/* Customer-provided text is inserted with textContent, never HTML. */
+let token = '', state = {leads: [], tasks: [], notifications: []}, selected = null;
+const $ = id => document.getElementById(id);
+const labels = {new:'新线索',contacted:'已联系',quoted:'已报价',meeting:'会后待办',replied:'客户已回复',won:'已成交',lost:'已流失',optout:'已退订',open:'待处理',approved:'已批准',sent:'已发送',done:'已完成',cancelled:'已取消',pending:'等待投递',failed:'投递失败',delivery_unknown:'发送结果待核实',first_response:'首响超时',meeting_next_step:'会后缺少下一步',next_step_overdue:'下一步已逾期',quote:'已发报价',created:'线索录入',note:'补充信息',assign:'变更负责人',snooze:'延期提醒',resume:'重新开启',task_approve:'批准草稿',task_complete:'完成任务'};
+const fmt = value => value ? new Date(Number(value) * 1000).toLocaleString() : '—';
+function el(tag, content, cls) {const n=document.createElement(tag);if(content!==undefined)n.textContent=content;if(cls)n.className=cls;return n;}
+function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);}
+async function api(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});const data=await r.json();if(!r.ok)throw Error(data.error||'请求失败');return data;}
+async function run(fn){try{await fn();}catch(e){notice(e.message,true);}}
+function button(text, action, cls='secondary'){const n=el('button',text,cls);n.addEventListener('click',()=>run(async()=>{n.disabled=true;try{await action();}finally{n.disabled=false;}}));return n;}
+function render(){
+ $('stats').replaceChildren();const metrics=[['客户总数',state.leads.length],['待处理任务',state.tasks.filter(t=>['open','approved'].includes(t.status)).length],['已成交客户',state.leads.filter(l=>l.stage==='won').length],['通知失败',state.notifications.filter(n=>n.status==='failed').length]];
+ for(const [label,value]of metrics){const n=el('div',undefined,'stat');n.append(el('strong',value),el('span',label));$('stats').append(n);}
+ $('leads').replaceChildren();const query=$('search').value.toLowerCase();
+ for(const l of state.leads.filter(l=>[l.name,l.company,l.owner].join(' ').toLowerCase().includes(query))){const n=button('',()=>select(l.id),'lead'+(l.id===selected?' active':''));n.append(el('strong',l.name+' · '+(l.company||'公司待确认')),el('small',l.owner+' · '+(labels[l.stage]||l.stage)));$('leads').append(n);}
+ if(!state.leads.length)$('leads').append(el('p','还没有客户，请添加第一条线索。','muted'));
+ $('notifications').replaceChildren();for(const n of state.notifications.slice(0,15)){const t=state.tasks.find(t=>t.id===n.task_id),l=state.leads.find(l=>l.id===t?.lead_id);$('notifications').append(el('div',`${l?.name||'客户'} · ${labels[n.status]||n.status} · 已尝试 ${n.attempts} 次${n.last_error?' · '+n.last_error:''}`,'history'));}
+}
+async function refresh(){state=await api('/api/state');render();if(selected)await select(selected,false);}
+async function select(id,clear=true){selected=id;render();const data=await api('/api/leads/'+id),l=data.lead;$('customer').replaceChildren(el('h2',l.name+' · '+(l.company||'公司待确认')),el('span',labels[l.stage]||l.stage,'badge'),el('span','负责人：'+l.owner,'badge'),el('p',`${l.email||'未填写邮箱'} · 来源：${l.source||'未记录'}`,'muted'),el('p',l.notes||'暂无背景记录'));$('detail-tools').hidden=false;if(clear){$('summary').textContent='';$('draft').value='';$('draft-mode').textContent='';}
+ $('tasks').replaceChildren();for(const t of state.tasks.filter(t=>t.lead_id===id)){const n=el('div',undefined,'task');n.append(el('strong',(labels[t.rule]||(t.rule.startsWith('quote_')?'报价后 '+t.rule.slice(6,-1)+' 天跟进':t.rule))+' · '+(labels[t.status]||t.status)),el('p','到期：'+fmt(t.due),'muted'),el('p',t.draft));const actions=el('div',undefined,'actions');
+ if(['open','approved'].includes(t.status)){actions.append(button('载入任务草稿',async()=>{$('draft').value=t.draft;$('summary').textContent=t.summary;}),button('批准当前草稿',async()=>{await api('/api/tasks/'+t.id+'/actions',{action:'approve',draft:$('draft').value||t.draft});notice('已批准草稿。发送需单独点击，并开启 SMTP 配置。');await refresh();}),button('标记任务完成',async()=>{await api('/api/tasks/'+t.id+'/actions',{action:'complete'});await refresh();}),button('重试失败通知',async()=>{await api('/api/tasks/'+t.id+'/actions',{action:'retry_notification'});await refresh();}));}
+ if(t.status==='approved')actions.append(button('发送已批准邮件',async()=>{if(!confirm('向 '+l.email+' 发送任务卡片中已批准的邮件？'))return;await api('/api/tasks/'+t.id+'/actions',{action:'send'});notice('邮件已提交给 SMTP 服务。');await refresh();},'danger'));
+ if(t.status==='delivery_unknown')actions.append(button('核实后标记完成',async()=>{await api('/api/tasks/'+t.id+'/actions',{action:'complete'});await refresh();}));n.append(actions);$('tasks').append(n);}
+ $('history').replaceChildren();for(const e of [...data.events].reverse()){const n=el('div',undefined,'history');n.append(el('small',fmt(e.created)+' · '+(labels[e.kind]||e.kind)),el('p',e.body.text||JSON.stringify(e.body)));$('history').append(n);}}
+$('connect').addEventListener('click',()=>run(async()=>{token=$('token').value;$('token').value='';await refresh();notice('工作台已连接。最近检查：'+fmt(state.last_tick));}));
+$('search').addEventListener('input',render);
+$('scan').addEventListener('click',()=>run(async()=>{const r=await api('/api/tick',{});await refresh();notice('检查完成，新增 '+r.created+' 个任务。');}));
+$('new-lead').addEventListener('submit',e=>{e.preventDefault();run(async()=>{const l=await api('/api/leads',Object.fromEntries(new FormData(e.target)));e.target.reset();await refresh();await select(l.id);notice('线索已添加，负责人：'+l.owner);});});
+$('event').addEventListener('submit',e=>{e.preventDefault();run(async()=>{const d=Object.fromEntries(new FormData(e.target));if(['next_step','snooze'].includes(d.kind)){if(!d.due)throw Error('请选择下一步或延期时间');d.due=new Date(d.due).getTime()/1000;}else delete d.due;d.idempotency_key=crypto.randomUUID();await api('/api/leads/'+selected+'/events',d);e.target.reset();$('draft').value='';$('summary').textContent='';await refresh();notice('进展已保存，相关任务已重新评估。');});});
+$('generate').addEventListener('click',()=>run(async()=>{const id=selected;$('generate').disabled=true;try{const r=await api('/api/leads/'+id+'/draft',{});if(id!==selected)return;$('summary').textContent=r.summary;$('draft').value=r.draft;$('draft-mode').textContent=(r.mode==='ai'?'AI 生成，请核对事实':'基础模板模式；配置模型后可使用 AI')+(r.warning?' · '+r.warning:'');}finally{$('generate').disabled=false;}}));
+setInterval(()=>{if(token)run(refresh);},30000);

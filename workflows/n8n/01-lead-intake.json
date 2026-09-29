@@ -1,0 +1,90 @@
+{
+  "name": "Sales Follow-up OS — Lead intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sales-lead",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2da568a8-fb34-4855-a50b-3d9cbf9b9d77",
+      "name": "Authenticated input",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "039fc285-e576-4b1c-a2bb-01660f429097"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-FOLLOWUP-SERVER/api/leads",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "662b8132-5e0b-4f1a-9164-b89e6eeae216",
+      "name": "Save to Follow-up OS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "94655c12-e1da-4813-9e3b-6e391aa21b34",
+      "name": "Return API result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Authenticated input": {
+      "main": [
+        [
+          {
+            "node": "Save to Follow-up OS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Follow-up OS": {
+      "main": [
+        [
+          {
+            "node": "Return API result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "active": false,
+  "pinData": {}
+}

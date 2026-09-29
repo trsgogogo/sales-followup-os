@@ -1,0 +1,93 @@
+{
+  "name": "Sales Follow-up OS — Internal notification relay",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sales-reminder",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "84dfd348-c74c-448f-9a9c-e8e28fa820ec",
+      "name": "Internal reminder input",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "6cb828a2-3d69-4316-936e-9e2a657a14ad"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE/WITH/YOUR-WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({text: $json.body.text}) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "1e5be827-881e-48d3-b073-8f12e2d2744d",
+      "name": "Deliver to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true}",
+        "options": {}
+      },
+      "id": "302aed48-1817-4637-a4c5-434109dbe348",
+      "name": "Acknowledge delivery",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Internal reminder input": {
+      "main": [
+        [
+          {
+            "node": "Deliver to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deliver to Slack": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "active": false,
+  "pinData": {}
+}
